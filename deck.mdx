@@ -1,0 +1,241 @@
+import {highlight} from 'mdx-deck/themes'
+import myTheme from './theme'
+import rpc from './images/rpc.svg'
+import remote from './images/remote.svg'
+import jcl from './images/jcl.svg'
+import epmd_1 from './images/epmd_1.svg'
+import epmd_2 from './images/epmd_2.svg'
+import ssh_1 from './images/ssh_1.svg'
+import ssh_2 from './images/ssh_2.svg'
+import ssh_3 from './images/ssh_3.svg'
+
+export const themes = [myTheme, highlight]
+
+# Access Remote Node <span style="font-size: 0.5em">with IEx</span>
+
+<br/>
+
+<a href="https://chitacan.io" target="_blank">@chitacan</a>
+
+---
+
+## Why?
+
+* 서버에 문제가 발생했을 때, 적극적으로 상태를 파악하고 싶다.
+  * 하지만 머릿속에 떠오르는 건 `htop` 뿐...
+* Erlang/OTP & Elixir 시스템의 상태를 파악하고, 디버깅하는데 도움을 주는 도구들은 원격 노드를 통해서 실행하는 것이 일반적
+  * 어렴풋이 기억하고 있다보니, 찾기 귀찮아서 실전에 잘 사용하지 못하고 있는 상태
+* `IEx` 에서 원격 노드에 접근할 수 있는 방법들을 확실하게 알아보자!!
+
+---
+
+## 원격 노드에 접근하기
+
+* Message
+* RPC
+* remote shell
+* JCL Mode
+
+---
+
+## Message
+
+다른 노드의 프로세스에 메시지를 보낼 수 있습니다.
+
+```iex
+$ iex --sname one
+iex(one@cmbp)> Process.register(self(), :hey)
+iex(one@cmbp)> receive do
+...(one@cmbp)> {:msg, msg} -> msg
+...(one@cmbp)> end
+
+$ iex --sname two
+iex(two@cmbp)> send({:hey, :one@cmbp}, {:msg, "hello one"})
+```
+
+---
+
+## RPC
+
+다른 노드에 선언된 함수를 호출할 수 있습니다.
+
+<img src={rpc} />
+
+```iex
+$ iex --sname one
+iex(one@cmbp)> defmodule Hello do
+...(one@cmbp)> def say, do: "world"
+...(one@cmbp)> end
+
+$ iex --sname two
+iex(two@cmbp)> Hello.say
+** (UndefinedFunctionError) function Hello.say/0 is undefined
+iex(two@cmbp)> Node.spawn_link(:one@cmbp, fn -> Hello.say |> IO.inspect end)
+#PID<12.12.12>
+"world"
+# or use :rpc module
+iex(two@cmbp)> :rpc.call(:one@cmbp, Hello, :say, [])
+"world"
+```
+
+---
+
+## remote shell
+
+* `--remsh` 옵션을 사용하면 원격 노드의 정보와 모듈에 완전히 접근할 수 있는 노드를 실행합니다.
+* 우리가 항상 사용하는 `<RELEASE> remote_console` 도 [같은 옵션을 사용합니다.](https://github.com/bitwalker/distillery/blob/b7805d2147140f1517152cd88dcdb6911498d7cd/priv/libexec/commands/remote_console.sh#L30)
+
+<img src={remote} />
+
+```iex
+$ iex --sname one
+$ iex --sname two --remsh one@cmbp
+iex(one@cmbp)> Hello.say
+"world"
+```
+
+---
+
+## JCL Mode
+
+하나의 노드에서 여러 원격 노드에 연결할 수 있습니다.
+
+<img src={jcl} />
+
+```iex
+$ iex --sname one
+$ iex --sname two
+$ iex --sname three
+
+iex(one@cmbp)> # Ctrl+G
+User switch command
+ --> r 'two@cmbp' 'Elixir.IEx'
+ --> c 2
+iex(two@cmbp)> # Ctrl+G
+ --> r 'three@cmbp' 'Elixir.IEx'
+ --> c 3
+iex(three@cmbp)> # Ctrl+G
+ --> j
+   1  {'Elixir.IEx.CLI',local_start,[]}
+   2  {two@cmbp,'Elixir.IEx',start,[]}
+   3* {three@cmbp,'Elixir.IEx',start,[]}
+```
+
+---
+
+## remote shell & JCL Mode
+
+`--remsh` 옵션은 JCL Mode `start remote shell` 과 동일합니다.
+
+```text
+ --> h
+  c [nn]            - connect to job
+  i [nn]            - interrupt job
+  k [nn]            - kill job
+  j                 - list all jobs
+  s [shell]         - start local shell
+  r [node [shell]]  - start remote shell
+  q                 - quit erlang
+  ? | h             - this message
+```
+
+---
+
+## JCL Mode (local)
+
+* JCL Mode 를 사용해 하나의 노드에 여러 `IEx` 프로세스를 실행할 수 있습니다.
+* 노드 정보와 모듈은 공유되지만 바인딩된 값들은 (`binding/0`) 공유되지 않습니다.
+* `IEx` 에서 메시지를 기다리거나, 오래 걸리는 작업을 할 때 유용합니다.
+
+```iex
+$ iex --sname one
+
+iex(one@cmbp)> self
+#PID<0.156.0>
+iex(one@cmbp)> # Ctrl+G
+ --> s 'Elixir.IEx'
+ --> c 2
+iex(one@cmbp)> self
+#PID<0.157.0>
+```
+
+---
+
+## 다른 호스트에 존재하는 노드에 접근하려면?
+
+<img src={epmd_1} width="40%"/>
+
+* 이름을 가진 노드는 실행시 tcp 소켓을 열고, 포트번호를 `epmd` 에 등록합니다.
+* 노드의 이름을 알고 있으면 접근가능한 포트번호를 `epmd` 를 통해 조회할 수 있습니다.
+* `epmd -names` 명령어로 호스트에 실행중인 노드와 포트번호를 조회할 수 있습니다.
+
+---
+
+## 다른 호스트에 존재하는 노드에 접근하려면?
+
+<img src={epmd_2} width="40%"/>
+
+* 호스트의 이름만 정확하게 명시한다면 접근할 수 있습니다.
+  * `Node.connect(:"two@10.0.0.3")`
+* `10.0.0.3` 의 `4369`, `53803` 포트는 `10.0.0.2` 에서 접근할 수 있어야 합니다.
+
+---
+
+## 다른 호스트에 존재하는 노드에 접근하려면?
+
+<img src={ssh_1} width="60%"/>
+
+* 방화벽 정책에 의해 ssh 를 제외한 다른 포트들에 대한 접근이 제한될 수 있습니다.
+* 그래도 ssh 연결이 가능하다면, `worker` 노드에 접근할 수 있습니다.
+
+---
+
+## 다른 호스트에 존재하는 노드에 접근하려면?
+
+<img src={ssh_2} width="60%"/>
+
+* localhost 의 `epmd` 는 필요없기 때문에 종료합니다. (`epmd -kill`)
+
+---
+
+## 다른 호스트에 존재하는 노드에 접근하려면?
+
+<img src={ssh_3} width="60%"/>
+
+* worker.myapp.com 호스트의 epmd 를 통해 `worker` 노드가 대기중인 포트번호를 조회합니다.
+  * `<RELEASE>/erts-<VERSION>/bin/epmd -names`
+* ssh local port forwarding 을 사용해 원격 포트들을 (`4369`, `53083`) localhost 에 생성합니다.
+* 이제 `local` 노드에서 `worker` 노드로 접근할 수 있습니다.
+
+---
+
+## 언제 필요하나요?
+
+<img src={ssh_3} width="60%"/>
+
+* 릴리즈로 실행된 노드에 observer 를 실행하고 싶을 때
+* 로컬에서 컴파일한 모듈을 원격 노드의 환경에서 (잠깐) 테스트 해보고 싶을 때
+
+---
+
+## 이게 가능하다고?
+
+로컬에서 컴파일한 모듈을 원격 노드의 환경에서 테스트 할 수 있습니다.
+
+```iex
+$ ssh -L 4369:localhost:4369 -L 53803:localhost:53803 worker.myapp.com -T
+$ iex --name debug@127.0.0.1 --cookie <COOKIE> -S mix
+iex(debug)> Debug.send_module(:"worker@127.0.0.1")
+{:module, Hello}
+iex(debug)> # Ctrl+G
+ --> r 'worker@127.0.0.1' 'Elixir.IEx'
+ --> c 2
+iex(worker)> Hello.say
+"world"
+```
+
+---
+
+## 다음은
+
+우리가 배포한 시스템 상태를 파악하고, 디버그 할 수 있는 도구들에 (`observer`, `:dbg`, `:sys`, `:ttb` 등등) 대해 살펴볼까 합니다.

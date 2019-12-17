@@ -1,0 +1,7 @@
+{
+  "version": 2,
+  "alias": "access-remote-node.chitacan.io",
+  "rewrites": [
+    {"source": "/:slide", "destination": "/"}
+  ]
+}

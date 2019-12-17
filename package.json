@@ -1,0 +1,19 @@
+{
+  "name": "access-remote-node",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "mdx-deck deck.mdx",
+    "build": "mdx-deck build deck.mdx",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "mdx-deck": "^3.0.13",
+    "gatsby": "2.18.4",
+    "gatsby-plugin-compile-es6-packages": "2.1.0"
+  }
+}
