@@ -23,7 +23,7 @@ export const themes = [myTheme, highlight]
 
 * 서버에 문제가 발생했을 때, 적극적으로 상태를 파악하고 싶다.
   * 하지만 머릿속에 떠오르는 건 `htop` 뿐...
-* Erlang/OTP & Elixir 시스템의 상태를 파악하고, 디버깅하는데 도움을 주는 도구들은 원격 노드를 통해서 실행하는 것이 일반적
+* Erlang/OTP & Elixir 시스템의 상태를 파악하고,<br/>디버깅하는데 도움을 주는 도구들은 원격 노드를 통해서 실행하는 것이 일반적
   * 어렴풋이 기억하고 있다보니, 찾기 귀찮아서 실전에 잘 사용하지 못하고 있는 상태
 * `IEx` 에서 원격 노드에 접근할 수 있는 방법들을 확실하게 알아보자!!
 
@@ -73,7 +73,7 @@ iex(two@cmbp)> Hello.say
 iex(two@cmbp)> Node.spawn_link(:one@cmbp, fn -> Hello.say |> IO.inspect end)
 #PID<12.12.12>
 "world"
-# or use :rpc module
+# or just use :rpc module
 iex(two@cmbp)> :rpc.call(:one@cmbp, Hello, :say, [])
 "world"
 ```
